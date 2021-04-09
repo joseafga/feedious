@@ -78,7 +78,7 @@ loading() {
 header() {
   unset _options # Limpa opcoes anteriores
 
-  printf '\n%s\n' $SEPARATOR
+  printf '%s\n' $SEPARATOR
   printf '%s\n' '     Feedious ▶️   '
   printf '%s\n' $SEPARATOR
 }
@@ -156,7 +156,7 @@ channels_add() {
   channel="${channel}${@:1:1}=${@:2}"
 
   printf '%s' "${config/\[Channels\]/$channel}" >$CONFIG_FILE
-  echo -e "${T[CHANNEL]} ${@:2} ${T[MSG_HAS_ADDED]}."
+  echo -e "${T[CHANNEL]} ${@:2} ${T[MSG_HAS_ADDED]}.\n"
 
   __reset
   main
