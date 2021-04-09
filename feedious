@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
+#
+# FEEDIOUS - (Feed + Invidious)
+# A minha ideia para o desafio foi utilizar a API do invidious ao invés do próprio youtube.
+# Tentei utilizar apenas bash, porém precisei utilizar wget para as consultas de API
+#
 # José Almeida <jose.afga@gmail.com>
 
 CONFIG_FILE='sources.conf'
-MAX_OPTION_LENGTH=99
-SEPARATOR='--------------------'
 
 # Limpa variaveis globais utilizadas
 __reset() {
-  unset CONFIG_FILE SEPARATOR URL PLAYER channels _options
+  unset URL PLAYER MAX_OPTION_LENGTH SEPARATOR channels _options
+}
+
+__exit() {
+  __reset
+  unset CONFIG_FILE
+
+  exit
 }
 
 # Verifica se parametro passado e uma funcao
@@ -64,14 +74,27 @@ options_add() {
   declare -gA _options["$1"]="$3"
 
   # Trunca textos grandes
-  [[ ${#2} -gt $MAX_OPTION_LENGTH ]] && desc="${2:0:$MAX_OPTION_LENGTH}..." || desc="$2"
+  [[ ${#2} -gt ${MAX_OPTION_LENGTH:-99} ]] && desc="${2:0:${MAX_OPTION_LENGTH:-99}}..." || desc="$2"
 
   echo "[$1] $desc"
+}
+
+# Verifica se as opcoes foram definidas
+# utilizasse antes de exibir o menu de opcoes para ter certeza que alguma opcao foi carregada
+options_check() {
+  [[ ${#_options[@]} -eq 0 ]] && {
+    echo "Atenção: não foram encontradas opções."
+    
+    read -rt 5 # aguarda enter ou 5 segundos
+    return 127
+  }
 }
 
 # Faz a pergunta e associa com com as opcoes de menu (aceita inteiros apenas)
 options_ask() {
   local -i answer
+
+  options_check || return $?
 
   printf '%s' "$1"
   read -r answer
@@ -111,7 +134,7 @@ channels_list() {
   loading
   response=$(wget -qO- "$endpoint")
 
-  __parse_channels "$response"
+  channels_menu "$response"
 }
 
 # Analisa a reposta da API e gera menu de canais
@@ -124,15 +147,15 @@ channels_menu() {
 
   while [[ $json =~ $regex ]]; do
     # Concatena descricao caso exista
-    [[ ${BASH_REMATCH[3]} ]] &&
-      options_add "$((++count))" "${BASH_REMATCH[1]} - ${BASH_REMATCH[3]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}" ||
-      options_add "$((++count))" "${BASH_REMATCH[1]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}"
+    # [[ ${BASH_REMATCH[3]} ]] &&
+    #   options_add "$((++count))" "${BASH_REMATCH[1]} - ${BASH_REMATCH[3]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}" ||
+    #   options_add "$((++count))" "${BASH_REMATCH[1]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}"
 
     json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
 
   echo $SEPARATOR
-  options_ask "Selecione uma opção: "
+  options_ask "Selecione uma opção: " || main_menu
 }
 
 #-------------------- VIDEOS --------------------#
@@ -145,11 +168,14 @@ videos_list() {
   loading
   response=$(wget -qO- "$endpoint")
 
-  __parse_videos "$response"
+  videos_menu "$response"
 }
 
+# Abre URL com o player escolhido no arquivo de configuracao
 videos_play() {
   $PLAYER "$URL/watch?v=$1"
+
+  __exit
 }
 
 # Analisa a reposta da API e gera menu de videos
@@ -160,13 +186,13 @@ videos_menu() {
 
   header
 
-  while [[ $json =~ $regex && count -lt 5 ]]; do
+  while [[ $json =~ $regex && count -lt ${MAX_VIDEOS:-5} ]]; do
     options_add "$((++count))" "${BASH_REMATCH[1]}" "videos_play ${BASH_REMATCH[2]}"
     json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
 
   echo $SEPARATOR
-  options_ask "Selecione uma opção: "
+  options_ask "Selecione uma opção: " || main_menu
 }
 
 #-------------------- MAIN --------------------#
@@ -191,7 +217,7 @@ main() {
   __parse_config
   main_menu
 
-  __reset
+  __exit
 }
 
 main "$@"
