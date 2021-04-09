@@ -3,7 +3,6 @@
 # FEEDIOUS - (Feed + Invidious)
 # A minha ideia para o desafio foi utilizar a API do invidious ao invés do próprio youtube.
 # Tentei utilizar apenas Bash, porém precisei utilizar wget para as consultas de API.
-# OBS: Não tratei muitos erros, mas acredito que fiz o principal
 #
 # Uso: feedious [NOME DO CANAL]
 # O nome do canal deve estar no arquivo de configuração
@@ -11,6 +10,20 @@
 # José Almeida <jose.afga@gmail.com>
 
 CONFIG_FILE='sources.conf'
+declare -A T=(
+  [CHANNEL]="Canal"
+  [CANCEL]="Cancelar"
+  [EXIT]="Sair"
+  [MSG_LOAD]="Carregando..."
+  [MSG_ADD_CHANNEL]="Adicionar canal"
+  [MSG_TRY_AGAIN]="Valor incorreto. Tente Novamente: "
+  [MSG_SEARCH]="Informe o termo de pesquisa: "
+  [MSG_HAS_ADDED]="foi adicionado"
+  [MSG_SELECT_OPTION]="Selecione uma opção: "
+  [WRN_NO_OPTIONS]="Atenção: não foram encontradas opções."
+  [ERR_FN_NOT_FOUND]="Erro: a função selecionada não foi encontrada."
+  [ERR_NO_PLAYER]="Erro: nenhum player definido na configuração."
+)
 
 # Limpa variaveis globais utilizadas
 __reset() {
@@ -59,13 +72,13 @@ __parse_config() {
 # Exibe texto de carregamento
 # TODO: criar algo mais interativo
 loading() {
-  printf $'%s\r' "Carregando..."
+  printf $'%s\r' "${T[MSG_LOAD]}"
 }
 
 header() {
   unset _options # Limpa opcoes anteriores
 
-  printf '%s\n' $SEPARATOR
+  printf '\n%s\n' $SEPARATOR
   printf '%s\n' '     Feedious ▶️   '
   printf '%s\n' $SEPARATOR
 }
@@ -87,7 +100,7 @@ options_add() {
 # utilizasse antes de exibir o menu de opcoes para ter certeza que alguma opcao foi carregada
 options_check() {
   [[ ${#_options[@]} -ne 0 ]] || {
-    printf '%s\n' "Atenção: não foram encontradas opções."
+    printf '%s\n' "${T[WRN_NO_OPTIONS]}"
 
     read -rt 5 # aguarda enter ou 5 segundos
     return 127
@@ -107,9 +120,9 @@ options_ask() {
   if [[ -n "${_options[$answer]}" ]]; then
     __is_function "${_options[$answer]%% *}" &&
       ${_options[$answer]} ||
-      printf '%s\n' "Erro: a função selecionada não foi encontrada." >&2
+      printf '%s\n' "${T[ERR_FN_NOT_FOUND]}" >&2
   else
-    options_ask "Valor incorreto. Tente Novamente: "
+    options_ask "${T[MSG_TRY_AGAIN]}"
   fi
 }
 
@@ -130,7 +143,7 @@ channel_name2id() {
 channels_search() {
   local answer
 
-  printf '%s' "Informe o termo de pesquisa: "
+  printf '%s' "${T[MSG_SEARCH]}"
   read -r answer
 
   channels_list "$answer"
@@ -143,7 +156,7 @@ channels_add() {
   channel="${channel}${@:1:1}=${@:2}"
 
   printf '%s' "${config/\[Channels\]/$channel}" >$CONFIG_FILE
-  printf '%s\n\n' "Canal ${@:2} foi adicionao."
+  echo -e "${T[CHANNEL]} ${@:2} ${T[MSG_HAS_ADDED]}."
 
   __reset
   main
@@ -176,9 +189,9 @@ channels_menu() {
     json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
 
-  options_add "0" "Cancelar" "main_menu"
+  options_add "0" "${T[CANCEL]}" "main_menu"
   printf '%s\n' $SEPARATOR
-  options_ask "Selecione uma opção: " || main_menu
+  options_ask "${T[MSG_SELECT_OPTION]}" || main_menu
 }
 
 #-------------------- VIDEOS --------------------#
@@ -213,9 +226,9 @@ videos_menu() {
     json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
 
-  options_add "0" "Cancelar" "main_menu"
+  options_add "0" "${T[CANCEL]}" "main_menu"
   printf '%s\n' $SEPARATOR
-  options_ask "Selecione uma opção: " || main_menu
+  options_ask "${T[MSG_SELECT_OPTION]}" || main_menu
 }
 
 #-------------------- MAIN --------------------#
@@ -230,16 +243,16 @@ main_menu() {
   done
 
   printf '%s\n' $SEPARATOR
-  options_add "$((++count))" "Adicionar canal" "channels_search"
-  options_add "0" "Sair" "__exit"
+  options_add "$((++count))" "${T[MSG_ADD_CHANNEL]}" "channels_search"
+  options_add "0" "${T[EXIT]}" "__exit"
   printf '%s\n' $SEPARATOR
-  options_ask "Selecione uma opção: "
+  options_ask "${T[MSG_SELECT_OPTION]}"
 }
 
 main() {
   __parse_config
   if [[ -z "$PLAYER" ]]; then
-    printf '%s\n' "Erro: nenhum player definido na configuração." >&2
+    printf '%s\n' "${T[ERR_NO_PLAYER]}" >&2
     __exit 128
   fi
 
