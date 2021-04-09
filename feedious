@@ -5,6 +5,9 @@
 # Tentei utilizar apenas Bash, porém precisei utilizar wget para as consultas de API.
 # OBS: Não tratei muitos erros, mas acredito que fiz o principal
 #
+# Uso: feedious [NOME DO CANAL]
+# O nome do canal deve estar no arquivo de configuração
+#
 # José Almeida <jose.afga@gmail.com>
 
 CONFIG_FILE='sources.conf'
@@ -111,6 +114,18 @@ options_ask() {
 }
 
 #-------------------- CHANNELS --------------------#
+
+# Converte o nome do canal (case insensitive) em seu respectivo id
+channel_name2id() {
+  for i in "${!channels[@]}"; do
+    if [[ "${channels[$i],,}" == "${@,,}" ]]; then 
+      printf '%s\n' "$i"
+      break
+    fi
+  done
+
+  return 1 # nao achou
+}
 
 channels_search() {
   local answer
@@ -226,6 +241,11 @@ main() {
   if [[ -z "$PLAYER" ]]; then
     printf '%s\n' "Erro: nenhum player definido na configuração." >&2
     __exit 128
+  fi
+
+  if [[ $# -gt 0 ]]; then
+    videos_list "$(channel_name2id "$@")"
+    exit
   fi
 
   main_menu
