@@ -17,7 +17,7 @@ __exit() {
   __reset
   unset CONFIG_FILE
 
-  exit
+  exit $1
 }
 
 # Verifica se parametro passado e uma funcao
@@ -215,8 +215,13 @@ main_menu() {
 
 main() {
   __parse_config
-  main_menu
+  [[ -z $PLAYER ]] && {
+    echo "Erro: nenhum player definido na configuração." >&2
 
+    __exit 128
+  }
+
+  main_menu
   __exit
 }
 
