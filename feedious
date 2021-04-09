@@ -62,9 +62,9 @@ loading() {
 header() {
   unset _options # Limpa opcoes anteriores
 
-  echo $SEPARATOR
-  echo '     Feedious ▶️   '
-  echo $SEPARATOR
+  printf '%s\n' $SEPARATOR
+  printf '%s\n' '     Feedious ▶️   '
+  printf '%s\n' $SEPARATOR
 }
 
 #-------------------- OPTIONS --------------------#
@@ -77,14 +77,14 @@ options_add() {
   # Trunca textos grandes
   [[ ${#2} -gt ${MAX_OPTION_LENGTH:-99} ]] && desc="${2:0:${MAX_OPTION_LENGTH:-99}}..." || desc="$2"
 
-  echo "[$1] $desc"
+  printf '%s\n' "[$1] $desc"
 }
 
 # Verifica se as opcoes foram definidas
 # utilizasse antes de exibir o menu de opcoes para ter certeza que alguma opcao foi carregada
 options_check() {
   [[ ${#_options[@]} -ne 0 ]] || {
-    echo "Atenção: não foram encontradas opções."
+    printf '%s\n' "Atenção: não foram encontradas opções."
 
     read -rt 5 # aguarda enter ou 5 segundos
     return 127
@@ -104,7 +104,7 @@ options_ask() {
   if [[ -n "${_options[$answer]}" ]]; then
     __is_function "${_options[$answer]%% *}" &&
       ${_options[$answer]} ||
-      echo "Erro: a função selecionada não foi encontrada." >&2
+      printf '%s\n' "Erro: a função selecionada não foi encontrada." >&2
   else
     options_ask "Valor incorreto. Tente Novamente: "
   fi
@@ -138,7 +138,6 @@ channels_list() {
   local endpoint="${URL}/api/v1/search?q=${1}&type=channel&fields=author,authorId,description"
   local response
 
-  echo "$endpoint"
   loading
   response=$(wget -qO- "$endpoint")
 
@@ -163,7 +162,7 @@ channels_menu() {
   done
 
   options_add "0" "Cancelar" "main_menu"
-  echo $SEPARATOR
+  printf '%s\n' $SEPARATOR
   options_ask "Selecione uma opção: " || main_menu
 }
 
@@ -173,7 +172,6 @@ videos_list() {
   local endpoint="${URL}/api/v1/channels/${1}/latest?fields=title,videoId"
   local response
 
-  echo "$endpoint"
   loading
   response=$(wget -qO- "$endpoint")
 
@@ -201,7 +199,7 @@ videos_menu() {
   done
 
   options_add "0" "Cancelar" "main_menu"
-  echo $SEPARATOR
+  printf '%s\n' $SEPARATOR
   options_ask "Selecione uma opção: " || main_menu
 }
 
@@ -216,17 +214,17 @@ main_menu() {
     options_add "$((++count))" "${channels[$i]}" "videos_list $i"
   done
 
-  echo $SEPARATOR
+  printf '%s\n' $SEPARATOR
   options_add "$((++count))" "Adicionar canal" "channels_search"
   options_add "0" "Sair" "__exit"
-  echo $SEPARATOR
+  printf '%s\n' $SEPARATOR
   options_ask "Selecione uma opção: "
 }
 
 main() {
   __parse_config
   if [[ -z "$PLAYER" ]]; then
-    echo "Erro: nenhum player definido na configuração." >&2
+    printf '%s\n' "Erro: nenhum player definido na configuração." >&2
     __exit 128
   fi
 
