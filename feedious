@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # FEEDIOUS - (Feed + Invidious)
-# A minha ideia para o desafio foi utilizar a API do invidious ao invés do próprio youtube.
-# Tentei utilizar apenas Bash, porém precisei utilizar wget para as consultas de API.
+# A minha ideia para o desafio foi utilizar a API do invidious ao invés do próprio youtube
+# e de outros programas, utilizei apenas o `wget` para as consultas de API 
 #
 # Uso: feedious [NOME DO CANAL]
 # O nome do canal deve estar no arquivo de configuração
