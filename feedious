@@ -101,7 +101,7 @@ options_ask() {
   read -r answer
 
   # Verifica se valor informado esta dentro das opcoes
-  if [[ $answer -ge 0 && $answer -lt ${#_options[@]} ]]; then
+  if [[ -n "${_options[$answer]}" ]]; then
     __is_function "${_options[$answer]%% *}" &&
       ${_options[$answer]} ||
       echo "Erro: a função selecionada não foi encontrada." >&2
@@ -121,10 +121,17 @@ channels_search() {
   channels_list "$answer"
 }
 
+# Realiza a adicao do canal no arquivo de configuracao e recarrega
 channels_add() {
-  echo "Adicionando canal id: $1"
-  shift
-  echo "Com nome: $@"
+  local config="$(<"$CONFIG_FILE")"
+  local channel=$'[Channels]\n'
+  channel="${channel}${@:1:1}=${@:2}"
+
+  printf '%s' "${config/\[Channels\]/$channel}" >$CONFIG_FILE
+  printf '%s\n\n' "Canal ${@:2} foi adicionao."
+
+  __reset
+  main
 }
 
 channels_list() {
@@ -155,6 +162,7 @@ channels_menu() {
     json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
 
+  options_add "0" "Cancelar" "main_menu"
   echo $SEPARATOR
   options_ask "Selecione uma opção: " || main_menu
 }
@@ -192,6 +200,7 @@ videos_menu() {
     json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
 
+  options_add "0" "Cancelar" "main_menu"
   echo $SEPARATOR
   options_ask "Selecione uma opção: " || main_menu
 }
@@ -218,7 +227,6 @@ main() {
   __parse_config
   if [[ -z "$PLAYER" ]]; then
     echo "Erro: nenhum player definido na configuração." >&2
-
     __exit 128
   fi
 
