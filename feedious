@@ -2,7 +2,8 @@
 #
 # FEEDIOUS - (Feed + Invidious)
 # A minha ideia para o desafio foi utilizar a API do invidious ao invés do próprio youtube.
-# Tentei utilizar apenas bash, porém precisei utilizar wget para as consultas de API
+# Tentei utilizar apenas Bash, porém precisei utilizar wget para as consultas de API.
+# OBS: Não tratei muitos erros, mas acredito que fiz o principal
 #
 # José Almeida <jose.afga@gmail.com>
 
@@ -82,9 +83,9 @@ options_add() {
 # Verifica se as opcoes foram definidas
 # utilizasse antes de exibir o menu de opcoes para ter certeza que alguma opcao foi carregada
 options_check() {
-  [[ ${#_options[@]} -eq 0 ]] && {
+  [[ ${#_options[@]} -ne 0 ]] || {
     echo "Atenção: não foram encontradas opções."
-    
+
     read -rt 5 # aguarda enter ou 5 segundos
     return 127
   }
@@ -147,9 +148,9 @@ channels_menu() {
 
   while [[ $json =~ $regex ]]; do
     # Concatena descricao caso exista
-    # [[ ${BASH_REMATCH[3]} ]] &&
-    #   options_add "$((++count))" "${BASH_REMATCH[1]} - ${BASH_REMATCH[3]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}" ||
-    #   options_add "$((++count))" "${BASH_REMATCH[1]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}"
+    [[ ${BASH_REMATCH[3]} ]] &&
+      options_add "$((++count))" "${BASH_REMATCH[1]} - ${BASH_REMATCH[3]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}" ||
+      options_add "$((++count))" "${BASH_REMATCH[1]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}"
 
     json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
@@ -215,11 +216,11 @@ main_menu() {
 
 main() {
   __parse_config
-  [[ -z $PLAYER ]] && {
+  if [[ -z "$PLAYER" ]]; then
     echo "Erro: nenhum player definido na configuração." >&2
 
     __exit 128
-  }
+  fi
 
   main_menu
   __exit
