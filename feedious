@@ -5,8 +5,8 @@ CONFIG_FILE='sources.conf'
 MAX_OPTION_LENGTH=99
 SEPARATOR='--------------------'
 
-# Limpa variaveis globais antes de sair
-__exit() {
+# Limpa variaveis globais utilizadas
+__reset() {
   unset CONFIG_FILE SEPARATOR URL PLAYER channels _options
 }
 
@@ -19,6 +19,7 @@ __is_function() {
 __parse_config() {
   local config config_channels
 
+  __reset
   mapfile -t config <"$CONFIG_FILE"
 
   for cfg in "${config[@]}"; do
@@ -41,26 +42,6 @@ __parse_config() {
   done
 }
 
-__parse_channels() {
-  local -i count=0
-  local json="$1"
-  local regex='\"author\":\"([^\"]*)\",\"authorId\":\"([^\"]*)\",\"description\":\"([^\"]*)' # TODO: melhorar o regex
-
-  header
-
-  while [[ $json =~ $regex ]]; do
-    # Concatena descricao caso exista
-    [[ ${BASH_REMATCH[3]} ]] &&
-      add_option "$((++count))" "${BASH_REMATCH[1]} - ${BASH_REMATCH[3]}" "add_channel ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}" ||
-      add_option "$((++count))" "${BASH_REMATCH[1]}" "add_channel ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}"
-
-    json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
-  done
-
-  echo $SEPARATOR
-  ask_option "Selecione uma opção: "
-}
-
 # Exibe texto de carregamento
 # TODO: criar algo mais interativo
 loading() {
@@ -75,8 +56,10 @@ header() {
   echo $SEPARATOR
 }
 
+#-------------------- OPTIONS --------------------#
+
 # Adiciona e exibe uma opcao de menu
-add_option() {
+options_add() {
   local desc
   declare -gA _options["$1"]="$3"
 
@@ -87,7 +70,7 @@ add_option() {
 }
 
 # Faz a pergunta e associa com com as opcoes de menu (aceita inteiros apenas)
-ask_option() {
+options_ask() {
   local -i answer
 
   printf '%s' "$1"
@@ -99,28 +82,30 @@ ask_option() {
       ${_options[$answer]} ||
       echo "Erro: a função selecionada não foi encontrada." >&2
   else
-    ask_option "Valor incorreto. Tente Novamente: "
+    options_ask "Valor incorreto. Tente Novamente: "
   fi
 }
 
-search_channel() {
+#-------------------- CHANNELS --------------------#
+
+channels_search() {
   local answer
 
   printf '%s' "Informe o termo de pesquisa: "
   read -r answer
 
-  list_channels "$answer"
+  channels_list "$answer"
 }
 
-add_channel() {
+channels_add() {
   echo "Adicionando canal id: $1"
   shift
   echo "Com nome: $@"
 }
 
-list_channels() {
-  local response
+channels_list() {
   local endpoint="${URL}/api/v1/search?q=${1}&type=channel&fields=author,authorId,description"
+  local response
 
   echo "$endpoint"
   loading
@@ -129,9 +114,62 @@ list_channels() {
   __parse_channels "$response"
 }
 
-list_videos() {
-  echo "Listando videos... $1"
+# Analisa a reposta da API e gera menu de canais
+channels_menu() {
+  local -i count=0
+  local json="$1"
+  local regex='\"author\":\"([^\"]*)\",\"authorId\":\"([^\"]*)\",\"description\":\"([^\"]*)' # TODO: melhorar o regex
+
+  header
+
+  while [[ $json =~ $regex ]]; do
+    # Concatena descricao caso exista
+    [[ ${BASH_REMATCH[3]} ]] &&
+      options_add "$((++count))" "${BASH_REMATCH[1]} - ${BASH_REMATCH[3]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}" ||
+      options_add "$((++count))" "${BASH_REMATCH[1]}" "channels_add ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}"
+
+    json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
+  done
+
+  echo $SEPARATOR
+  options_ask "Selecione uma opção: "
 }
+
+#-------------------- VIDEOS --------------------#
+
+videos_list() {
+  local endpoint="${URL}/api/v1/channels/${1}/latest?fields=title,videoId"
+  local response
+
+  echo "$endpoint"
+  loading
+  response=$(wget -qO- "$endpoint")
+
+  __parse_videos "$response"
+}
+
+videos_play() {
+  $PLAYER "$URL/watch?v=$1"
+}
+
+# Analisa a reposta da API e gera menu de videos
+videos_menu() {
+  local -i count=0
+  local json="$1"
+  local regex='\"title\":\"([^\"]*)\",\"videoId\":\"([^\"]*)' # TODO: melhorar o regex
+
+  header
+
+  while [[ $json =~ $regex && count -lt 5 ]]; do
+    options_add "$((++count))" "${BASH_REMATCH[1]}" "videos_play ${BASH_REMATCH[2]}"
+    json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
+  done
+
+  echo $SEPARATOR
+  options_ask "Selecione uma opção: "
+}
+
+#-------------------- MAIN --------------------#
 
 main_menu() {
   local -i count=0
@@ -139,21 +177,21 @@ main_menu() {
   header
 
   for i in "${!channels[@]}"; do
-    add_option "$((++count))" "${channels[$i]}" "__list_videos $i"
+    options_add "$((++count))" "${channels[$i]}" "videos_list $i"
   done
 
   echo $SEPARATOR
-  add_option "$((++count))" "Adicionar canal" "search_channel"
-  add_option "0" "Sair" "__exit"
+  options_add "$((++count))" "Adicionar canal" "channels_search"
+  options_add "0" "Sair" "__exit"
   echo $SEPARATOR
-  ask_option "Selecione uma opção: "
+  options_ask "Selecione uma opção: "
 }
 
 main() {
   __parse_config
   main_menu
 
-  # __exit
+  __reset
 }
 
 main "$@"
