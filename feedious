@@ -2,6 +2,7 @@
 # José Almeida <jose.afga@gmail.com>
 
 CONFIG_FILE='sources.conf'
+MAX_OPTION_LENGTH=99
 SEPARATOR='--------------------'
 
 # Limpa variaveis globais antes de sair
@@ -13,45 +14,6 @@ __exit() {
 __is_function() {
   type -p $1 &>/dev/null
 }
-
-__header() {
-  echo $SEPARATOR
-  echo '     Feedious ▶️   '
-  echo $SEPARATOR
-}
-
-# Adiciona e exibe uma opcao de menu
-__add_option() {
-  declare -gA _options["$1"]="$3"
-
-  echo "[$1] $2"
-}
-
-# Faz a pergunta e associa com com as opcoes de menu (aceita inteiros apenas)
-__ask_option() {
-  local -i answer
-
-  printf '%s' "$1"
-  read answer
-
-  # Verifica se valor informado esta dentro das opcoes
-  if [[ $answer -ge 0 && $answer -lt ${#_options[@]} ]]; then
-    __do_option "$answer"
-  else
-    __ask_option "Valor incorreto. Tente Novamente: "
-  fi
-}
-
-# Realiza acao associada a opcao
-__do_option() {
-  __is_function "${_options[$1]}" && ${_options[$1]}
-
-  unset _options # Limpa opcoes anteriores
-}
-
-# list_channels() {
-#   #/api/v1/search?q=debxp&type=channel&fields=author,authorId,authorUrl
-# }
 
 # Realiza a leitura e definicoes do arquivo de configuracao
 __parse_config() {
@@ -79,20 +41,112 @@ __parse_config() {
   done
 }
 
-main_menu() {
+__parse_channels() {
   local -i count=0
+  local json="$1"
+  local regex='\"author\":\"([^\"]*)\",\"authorId\":\"([^\"]*)\",\"description\":\"([^\"]*)' # TODO: melhorar o regex
 
-  __header
+  header
 
-  for i in "${!channels[@]}"; do
-    __add_option "$((++count))" "${channels[$i]}" "$i"
+  while [[ $json =~ $regex ]]; do
+    # Concatena descricao caso exista
+    [[ ${BASH_REMATCH[3]} ]] &&
+      add_option "$((++count))" "${BASH_REMATCH[1]} - ${BASH_REMATCH[3]}" "add_channel ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}" ||
+      add_option "$((++count))" "${BASH_REMATCH[1]}" "add_channel ${BASH_REMATCH[2]} ${BASH_REMATCH[1]}"
+
+    json="${json##*${BASH_REMATCH[0]}}" # Remove parte ja processada
   done
 
   echo $SEPARATOR
-  __add_option "$((++count))" "Adicionar canal" "__add_channel"
-  __add_option "0" "Sair" "__exit"
+  ask_option "Selecione uma opção: "
+}
+
+# Exibe texto de carregamento
+# TODO: criar algo mais interativo
+loading() {
+  printf $'%s\r' "Carregando..."
+}
+
+header() {
+  unset _options # Limpa opcoes anteriores
+
   echo $SEPARATOR
-  __ask_option "Selecione uma opção: "
+  echo '     Feedious ▶️   '
+  echo $SEPARATOR
+}
+
+# Adiciona e exibe uma opcao de menu
+add_option() {
+  local desc
+  declare -gA _options["$1"]="$3"
+
+  # Trunca textos grandes
+  [[ ${#2} -gt $MAX_OPTION_LENGTH ]] && desc="${2:0:$MAX_OPTION_LENGTH}..." || desc="$2"
+
+  echo "[$1] $desc"
+}
+
+# Faz a pergunta e associa com com as opcoes de menu (aceita inteiros apenas)
+ask_option() {
+  local -i answer
+
+  printf '%s' "$1"
+  read -r answer
+
+  # Verifica se valor informado esta dentro das opcoes
+  if [[ $answer -ge 0 && $answer -lt ${#_options[@]} ]]; then
+    __is_function "${_options[$answer]%% *}" &&
+      ${_options[$answer]} ||
+      echo "Erro: a função selecionada não foi encontrada." >&2
+  else
+    ask_option "Valor incorreto. Tente Novamente: "
+  fi
+}
+
+search_channel() {
+  local answer
+
+  printf '%s' "Informe o termo de pesquisa: "
+  read -r answer
+
+  list_channels "$answer"
+}
+
+add_channel() {
+  echo "Adicionando canal id: $1"
+  shift
+  echo "Com nome: $@"
+}
+
+list_channels() {
+  local response
+  local endpoint="${URL}/api/v1/search?q=${1}&type=channel&fields=author,authorId,description"
+
+  echo "$endpoint"
+  loading
+  response=$(wget -qO- "$endpoint")
+
+  __parse_channels "$response"
+}
+
+list_videos() {
+  echo "Listando videos... $1"
+}
+
+main_menu() {
+  local -i count=0
+
+  header
+
+  for i in "${!channels[@]}"; do
+    add_option "$((++count))" "${channels[$i]}" "__list_videos $i"
+  done
+
+  echo $SEPARATOR
+  add_option "$((++count))" "Adicionar canal" "search_channel"
+  add_option "0" "Sair" "__exit"
+  echo $SEPARATOR
+  ask_option "Selecione uma opção: "
 }
 
 main() {
