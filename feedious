@@ -2,7 +2,7 @@
 #
 # FEEDIOUS - (Feed + Invidious)
 # A minha ideia para o desafio foi utilizar a API do invidious ao invés do próprio youtube
-# e de outros programas, utilizei apenas o `wget` para as consultas de API 
+# e de outros programas, utilizei apenas o `wget` para as consultas de API
 #
 # Uso: feedious [NOME DO CANAL]
 # O nome do canal deve estar no arquivo de configuração
@@ -21,13 +21,12 @@ declare -A T=(
   [MSG_HAS_ADDED]="foi adicionado"
   [MSG_SELECT_OPTION]="Selecione uma opção: "
   [WRN_NO_OPTIONS]="Atenção: não foram encontradas opções."
-  [ERR_FN_NOT_FOUND]="Erro: a função selecionada não foi encontrada."
   [ERR_NO_PLAYER]="Erro: nenhum player definido na configuração."
 )
 
 # Limpa variaveis globais utilizadas
 __reset() {
-  unset URL PLAYER MAX_OPTION_LENGTH SEPARATOR channels _options
+  unset URL PLAYER MAX_OPTION_LENGTH MAX_VIDEOS SEPARATOR channels _options
 }
 
 __exit() {
@@ -37,19 +36,15 @@ __exit() {
   exit $1
 }
 
-# Verifica se parametro passado e uma funcao
-__is_function() {
-  type -p $1 &>/dev/null
-}
-
 # Realiza a leitura e definicoes do arquivo de configuracao
 __parse_config() {
   local config config_channels
 
   __reset
-  mapfile -t config <"$CONFIG_FILE"
 
-  for cfg in "${config[@]}"; do
+  # requer linha em branco no fim do arquivo de configuracao
+  while read -r cfg; do
+    echo $cfg
     case "$cfg" in
       \#*) continue ;; # comentarios
       \[*\])
@@ -66,7 +61,7 @@ __parse_config() {
         fi
         ;;
     esac
-  done
+  done <"$CONFIG_FILE"
 }
 
 # Exibe texto de carregamento
@@ -77,6 +72,7 @@ loading() {
 
 header() {
   unset _options # Limpa opcoes anteriores
+  clear
 
   printf '%s\n' $SEPARATOR
   printf '%s\n' '     Feedious ▶️   '
@@ -91,7 +87,7 @@ options_add() {
   declare -gA _options["$1"]="$3"
 
   # Trunca textos grandes
-  [[ ${#2} -gt ${MAX_OPTION_LENGTH:-99} ]] && desc="${2:0:${MAX_OPTION_LENGTH:-99}}..." || desc="$2"
+  [[ ${#2} -gt ${MAX_OPTION_LENGTH:-$COLUMNS} ]] && desc="${2:0:${MAX_OPTION_LENGTH:-$(($COLUMNS - 3))}}..." || desc="$2"
 
   printf '%s\n' "[$1] $desc"
 }
@@ -99,7 +95,7 @@ options_add() {
 # Verifica se as opcoes foram definidas
 # utilizasse antes de exibir o menu de opcoes para ter certeza que alguma opcao foi carregada
 options_check() {
-  [[ ${#_options[@]} -ne 0 ]] || {
+  [[ ${#_options[@]} -gt $1 ]] || {
     printf '%s\n' "${T[WRN_NO_OPTIONS]}"
 
     read -rt 5 # aguarda enter ou 5 segundos
@@ -108,21 +104,20 @@ options_check() {
 }
 
 # Faz a pergunta e associa com com as opcoes de menu (aceita inteiros apenas)
+# Uso: options_ask [NUMERO DE OPCOES FIXAS]
 options_ask() {
   local -i answer
 
-  options_check || return $?
+  options_check "${1:-0}" || return
 
-  printf '%s' "$1"
+  printf '%s' "${T[MSG_SELECT_OPTION]}"
   read -r answer
 
   # Verifica se valor informado esta dentro das opcoes
   if [[ -n "${_options[$answer]}" ]]; then
-    __is_function "${_options[$answer]%% *}" &&
-      ${_options[$answer]} ||
-      printf '%s\n' "${T[ERR_FN_NOT_FOUND]}" >&2
+    ${_options[$answer]}
   else
-    options_ask "${T[MSG_TRY_AGAIN]}"
+    options_ask
   fi
 }
 
@@ -131,7 +126,7 @@ options_ask() {
 # Converte o nome do canal (case insensitive) em seu respectivo id
 channel_name2id() {
   for i in "${!channels[@]}"; do
-    if [[ "${channels[$i],,}" == "${@,,}" ]]; then 
+    if [[ "${channels[$i],,}" == "${@,,}" ]]; then
       printf '%s\n' "$i"
       break
     fi
@@ -191,7 +186,7 @@ channels_menu() {
 
   options_add "0" "${T[CANCEL]}" "main_menu"
   printf '%s\n' $SEPARATOR
-  options_ask "${T[MSG_SELECT_OPTION]}" || main_menu
+  options_ask 1 || main_menu
 }
 
 #-------------------- VIDEOS --------------------#
@@ -208,7 +203,7 @@ videos_list() {
 
 # Abre URL com o player escolhido no arquivo de configuracao
 videos_play() {
-  $PLAYER "$URL/watch?v=$1"
+  $PLAYER "$URL/watch?v=$1" &>/dev/null &
 
   __exit
 }
@@ -228,7 +223,7 @@ videos_menu() {
 
   options_add "0" "${T[CANCEL]}" "main_menu"
   printf '%s\n' $SEPARATOR
-  options_ask "${T[MSG_SELECT_OPTION]}" || main_menu
+  options_ask 1 || main_menu
 }
 
 #-------------------- MAIN --------------------#
@@ -246,7 +241,7 @@ main_menu() {
   options_add "$((++count))" "${T[MSG_ADD_CHANNEL]}" "channels_search"
   options_add "0" "${T[EXIT]}" "__exit"
   printf '%s\n' $SEPARATOR
-  options_ask "${T[MSG_SELECT_OPTION]}"
+  options_ask 2
 }
 
 main() {
