@@ -21,6 +21,7 @@ declare -A T=(
   [MSG_HAS_ADDED]="foi adicionado"
   [MSG_SELECT_OPTION]="Selecione uma opção: "
   [WRN_NO_OPTIONS]="Atenção: não foram encontradas opções."
+  [ERR_FN_NOT_FOUND]="Erro: a função selecionada não foi encontrada."
   [ERR_NO_PLAYER]="Erro: nenhum player definido na configuração."
 )
 
@@ -29,11 +30,14 @@ __reset() {
   unset URL PLAYER MAX_OPTION_LENGTH MAX_VIDEOS SEPARATOR channels _options
 }
 
-__exit() {
-  __reset
-  unset CONFIG_FILE
+# Verifica se parametro passado e uma funcao
+__is_function() {
+  type -p $1 &>/dev/null
+}
 
-  exit $1
+__msg_delay() {
+  printf '%s\n' "$1"
+  read -rt 3 # aguarda enter ou 5 segundos
 }
 
 # Realiza a leitura e definicoes do arquivo de configuracao
@@ -96,9 +100,8 @@ options_add() {
 # utilizasse antes de exibir o menu de opcoes para ter certeza que alguma opcao foi carregada
 options_check() {
   [[ ${#_options[@]} -gt $1 ]] || {
-    printf '%s\n' "${T[WRN_NO_OPTIONS]}"
+    __msg_delay "${T[WRN_NO_OPTIONS]}"
 
-    read -rt 5 # aguarda enter ou 5 segundos
     return 127
   }
 }
@@ -115,7 +118,9 @@ options_ask() {
 
   # Verifica se valor informado esta dentro das opcoes
   if [[ -n "${_options[$answer]}" ]]; then
-    ${_options[$answer]}
+    __is_function "${_options[$answer]%% *}" &&
+      ${_options[$answer]} ||
+      printf '%s\n' "${T[ERR_FN_NOT_FOUND]}" >&2
   else
     options_ask
   fi
@@ -204,8 +209,9 @@ videos_list() {
 # Abre URL com o player escolhido no arquivo de configuracao
 videos_play() {
   $PLAYER "$URL/watch?v=$1" &>/dev/null &
+  __msg_delay "${T[MSG_LOAD]}"
 
-  __exit
+  $BEFORE_PLAY
 }
 
 # Analisa a reposta da API e gera menu de videos
@@ -239,7 +245,7 @@ main_menu() {
 
   printf '%s\n' $SEPARATOR
   options_add "$((++count))" "${T[MSG_ADD_CHANNEL]}" "channels_search"
-  options_add "0" "${T[EXIT]}" "__exit"
+  options_add "0" "${T[EXIT]}" "exit"
   printf '%s\n' $SEPARATOR
   options_ask 2
 }
@@ -248,7 +254,7 @@ main() {
   __parse_config
   if [[ -z "$PLAYER" ]]; then
     printf '%s\n' "${T[ERR_NO_PLAYER]}" >&2
-    __exit 128
+    exit 128
   fi
 
   if [[ $# -gt 0 ]]; then
@@ -257,7 +263,7 @@ main() {
   fi
 
   main_menu
-  __exit
+  exit
 }
 
 main "$@"
