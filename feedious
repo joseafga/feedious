@@ -9,7 +9,11 @@
 #
 # José Almeida <jose.afga@gmail.com>
 
+VERSION='0.1.1'
 CONFIG_FILE='sources.conf'
+UA_STRING="Mozilla/5.0 Feedious/${VERSION}" # User-Agent generico para evitar erros
+
+# TODO: Traducao
 declare -A T=(
   [CHANNEL]="Canal"
   [CANCEL]="Cancelar"
@@ -37,7 +41,7 @@ __is_function() {
 
 __msg_delay() {
   printf '%s\n' "$1"
-  read -rt 3 # aguarda enter ou 5 segundos
+  read -rt 3 # aguarda enter ou x segundos
 }
 
 # Realiza a leitura e definicoes do arquivo de configuracao
@@ -167,7 +171,7 @@ channels_list() {
   local response
 
   loading
-  response=$(wget -qO- "$endpoint")
+  response=$(wget -qO- --user-agent="$UA_STRING" --no-cookies "$endpoint")
 
   channels_menu "$response"
 }
@@ -197,11 +201,11 @@ channels_menu() {
 #-------------------- VIDEOS --------------------#
 
 videos_list() {
-  local endpoint="${URL}/api/v1/channels/${1}/latest?fields=title,videoId"
+  local endpoint="${URL}/api/v1/channels/${1}/latest?fields=videos(title,videoId)"
   local response
 
   loading
-  response=$(wget -qO- "$endpoint")
+  response=$(wget -qO- --user-agent="$UA_STRING" --no-cookies "$endpoint")
 
   videos_menu "$response"
 }
@@ -211,7 +215,7 @@ videos_play() {
   $PLAYER "$URL/watch?v=$1" &>/dev/null &
   __msg_delay "${T[MSG_LOAD]}"
 
-  $BEFORE_PLAY
+  $AFTER_PLAY
 }
 
 # Analisa a reposta da API e gera menu de videos
